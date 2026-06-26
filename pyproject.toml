@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sk-pqc"
+version = "0.1.0"
+description = "Sovereign, app-agnostic hybrid post-quantum crypto primitives: hybrid X25519+ML-KEM-768 KEM (FIPS 203), PQXDH-style seal, metadata-sealing routing envelope, epoch ratchets, crypto-agility registry. Python sibling of the Dart sk_pqc."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "smilinTux / SKWorld" }]
+keywords = [
+    "post-quantum",
+    "ML-KEM",
+    "FIPS-203",
+    "hybrid",
+    "ratchet",
+    "crypto-agility",
+    "sovereign",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+]
+
+# Core dependency: pyca/cryptography supplies the X25519 leg, HKDF combiner, and
+# AES-256-GCM bulk cipher. The ML-KEM-768 leg needs liboqs (via the `oqs` import
+# from `liboqs-python`) — installed via the `pq` extra below, since it pulls a
+# native library. Without it the pure-pyca pieces (combiner, suite registry,
+# anon-queue codec/MAC, key derivation) still work; hybrid KEM operations raise
+# PqKemUnavailable (a hard error — never a silent classical downgrade).
+dependencies = [
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+# Enables the post-quantum (ML-KEM-768) leg. `liboqs-python` exposes the `oqs`
+# import name and binds liboqs (FIPS 203).
+pq = ["liboqs-python>=0.12"]
+test = [
+    "pytest>=8.0",
+    "liboqs-python>=0.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/smilinTux/sk-pqc-py"
+"Dart sibling" = "https://github.com/smilinTux/sk_pqc"
+Standards = "https://github.com/smilinTux/sk-standards"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sk_pqc"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/sk_pqc", "tests", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
