@@ -1,5 +1,15 @@
 # sk-pqc (Python)
 
+[![PyPI](https://img.shields.io/pypi/v/sk-pqc.svg)](https://pypi.org/project/sk-pqc/)
+[![Python](https://img.shields.io/pypi/pyversions/sk-pqc.svg)](https://pypi.org/project/sk-pqc/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Suite](https://img.shields.io/badge/suite-x25519--mlkem768-1f6feb.svg)](https://github.com/smilinTux/sk-standards)
+
+```bash
+pip install sk-pqc          # core; hybrid KEM needs the pq extra
+pip install "sk-pqc[pq]"    # + the ML-KEM-768 leg (liboqs)
+```
+
 > ⚠️ **Experimental · pre-1.0 · NOT independently security-audited.** This is a clean-room
 > **reference implementation** — tested and cross-impl-parity-verified against our Rust
 > (`sk-pqc`) and Dart (`sk_pqc`) builds, but it has had **no third-party security audit,
@@ -126,7 +136,8 @@ The `pqroute1` routing split and the `anon_queue` addressing are inspired by the
 
 ## Related projects / See also
 
-- ↔️ **Sibling:** [sk_pqc](https://github.com/smilinTux/sk-pqc-dart) — the Dart hybrid-KEM companion this package interoperates with (shared KAT vector).
+- ↔️ **Sibling (Dart):** [sk_pqc](https://github.com/smilinTux/sk-pqc-dart) ([pub.dev](https://pub.dev/packages/sk_pqc)) — the Dart hybrid-KEM companion this package interoperates with (shared KAT vector).
+- ↔️ **Sibling (Rust):** [sk-pqc](https://github.com/smilinTux/sk-pqc-rs) ([crates.io](https://crates.io/crates/sk-pqc)) — the Rust implementation of the same suite + wire formats (full module set: kem/pqdm/pqroute/ratchets/anon_queue/suites).
 - ⬇️ **Used by:** [skcomms](https://github.com/smilinTux/skcomms) — sovereign multi-transport comms (envelope payload + routing seal).
 - ⬇️ **Used by:** [skchat](https://github.com/smilinTux/skchat) — AI-native encrypted chat (group + 1:1 DM ratchets).
 - ↔️ **Sibling:** [sk_pgp](https://github.com/smilinTux/sk_pgp) — sovereign OpenPGP-PQC signing library (the signature counterpart).
