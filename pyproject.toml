@@ -51,7 +51,7 @@ test = [
 
 [project.urls]
 Homepage = "https://github.com/smilinTux/sk-pqc-py"
-"Dart sibling" = "https://github.com/smilinTux/sk_pqc"
+"Dart sibling" = "https://github.com/smilinTux/sk-pqc-dart"
 Standards = "https://github.com/smilinTux/sk-standards"
 
 [tool.hatch.build.targets.wheel]

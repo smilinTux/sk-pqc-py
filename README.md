@@ -2,7 +2,7 @@
 
 > ⚠️ **Experimental · pre-1.0 · NOT independently security-audited.** This is a clean-room
 > **reference implementation** — tested and cross-impl-parity-verified against our Rust
-> (`sk-core`) and Dart (`sk_pqc`) builds, but it has had **no third-party security audit,
+> (`sk-pqc`) and Dart (`sk_pqc`) builds, but it has had **no third-party security audit,
 > fuzzing, or formal review**. Primitives bind vetted libraries (`liboqs`/ML-KEM,
 > `cryptography`); the original code is the wiring. **Review it yourself before production
 > use.** We apply our own honest-claims discipline to the library itself: don't trust it
@@ -11,7 +11,7 @@
 **`sk-pqc` is a small, app-agnostic Python library of vetted *hybrid post-quantum* cryptographic primitives.**
 **Use it to add hybrid X25519 + ML-KEM-768 (FIPS 203) confidentiality to any app — without dragging in a messaging framework.**
 
-It is the Python sibling of the public Dart [`sk_pqc`](https://github.com/smilinTux/sk_pqc) package and is **byte-for-byte interoperable** with it (shared cross-impl KAT vector). Import name `sk_pqc`; PyPI name `sk-pqc`.
+It is the Python sibling of the public Dart [`sk_pqc`](https://github.com/smilinTux/sk-pqc-dart) package and is **byte-for-byte interoperable** with it (shared cross-impl KAT vector). Import name `sk_pqc`; PyPI name `sk-pqc`.
 
 - **Maturity tier:** T2 — Hybrid KEM (key exchange/wrap is `HKDF(X25519 ‖ ML-KEM-768)`; signatures stay classical/optional-hybrid). Per [sk-standards CRYPTOGRAPHY_STANDARD](https://github.com/smilinTux/sk-standards).
 - **License:** Apache-2.0 · **Python:** ≥ 3.10 · **Version:** 0.1.0
@@ -126,7 +126,7 @@ The `pqroute1` routing split and the `anon_queue` addressing are inspired by the
 
 ## Related projects / See also
 
-- ↔️ **Sibling:** [sk_pqc](https://github.com/smilinTux/sk_pqc) — the Dart hybrid-KEM companion this package interoperates with (shared KAT vector).
+- ↔️ **Sibling:** [sk_pqc](https://github.com/smilinTux/sk-pqc-dart) — the Dart hybrid-KEM companion this package interoperates with (shared KAT vector).
 - ⬇️ **Used by:** [skcomms](https://github.com/smilinTux/skcomms) — sovereign multi-transport comms (envelope payload + routing seal).
 - ⬇️ **Used by:** [skchat](https://github.com/smilinTux/skchat) — AI-native encrypted chat (group + 1:1 DM ratchets).
 - ↔️ **Sibling:** [sk_pgp](https://github.com/smilinTux/sk_pgp) — sovereign OpenPGP-PQC signing library (the signature counterpart).
