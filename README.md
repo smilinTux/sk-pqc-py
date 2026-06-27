@@ -1,5 +1,13 @@
 # sk-pqc (Python)
 
+> ⚠️ **Experimental · pre-1.0 · NOT independently security-audited.** This is a clean-room
+> **reference implementation** — tested and cross-impl-parity-verified against our Rust
+> (`sk-core`) and Dart (`sk_pqc`) builds, but it has had **no third-party security audit,
+> fuzzing, or formal review**. Primitives bind vetted libraries (`liboqs`/ML-KEM,
+> `cryptography`); the original code is the wiring. **Review it yourself before production
+> use.** We apply our own honest-claims discipline to the library itself: don't trust it
+> beyond the evidence.
+
 **`sk-pqc` is a small, app-agnostic Python library of vetted *hybrid post-quantum* cryptographic primitives.**
 **Use it to add hybrid X25519 + ML-KEM-768 (FIPS 203) confidentiality to any app — without dragging in a messaging framework.**
 
