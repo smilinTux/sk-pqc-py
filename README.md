@@ -112,6 +112,72 @@ blob = seal(b"top secret", bundle, sender="alice", recipient="bob")
 assert open_sealed(blob, kp.private_key, sender="alice", recipient="bob") == b"top secret"
 ```
 
+**1:1 DM epoch ratchet** — distribute one epoch secret over the hybrid KEM, then key
+many messages off it symmetrically (the ~1.1 KB ML-KEM ciphertext is paid once per
+epoch, not per message):
+
+```python
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from sk_pqc import DmRatchet, hybrid_keypair
+from sk_pqc.dm_ratchet import new_epoch_secret, wrap_dm_epoch_secret, unwrap_dm_epoch_secret
+
+bob = hybrid_keypair()
+e0 = new_epoch_secret()
+bob_e0 = unwrap_dm_epoch_secret(wrap_dm_epoch_secret(e0, bob.public_key), bob.private_key)
+
+alice = DmRatchet(epoch=0, epoch_secret=e0)
+bob_r = DmRatchet(epoch=0, epoch_secret=bob_e0)
+
+idx, key = alice.next_outbound_key()           # carry idx on the wire
+nonce = os.urandom(12)
+ct = AESGCM(key).encrypt(nonce, b"hi bob", None)
+assert AESGCM(bob_r.message_key(index=idx)).decrypt(nonce, ct, None) == b"hi bob"
+```
+
+### Runnable examples
+
+The [`examples/`](examples/) directory has self-contained scripts (each is also a
+smoke test — they `assert` their own correctness):
+
+| Script | What it shows |
+|---|---|
+| [`examples/hybrid_kem_roundtrip.py`](examples/hybrid_kem_roundtrip.py) | Hybrid KEM encap/decap roundtrip + using the shared secret as an AES-256-GCM key. |
+| [`examples/dm_ratchet_roundtrip.py`](examples/dm_ratchet_roundtrip.py) | Two-party (Alice↔Bob) DM-ratchet roundtrip: per-epoch KEM wrap, symmetric per-message keys, out-of-order delivery, post-compromise rekey. |
+| [`examples/bench.py`](examples/bench.py) | `timeit` micro-benchmark of keygen/encap/decap (the table below). |
+
+```bash
+SK_PQC_LIBOQS=$HOME/.local/lib/liboqs.so LD_LIBRARY_PATH=$HOME/.local/lib \
+  python examples/hybrid_kem_roundtrip.py
+SK_PQC_LIBOQS=$HOME/.local/lib/liboqs.so LD_LIBRARY_PATH=$HOME/.local/lib \
+  python examples/dm_ratchet_roundtrip.py
+```
+
+## Benchmarks
+
+Whole-operation timings for the hybrid KEM (each op includes **both** the X25519
+leg and the ML-KEM-768 leg plus the HKDF combiner — what a caller actually pays).
+Measured with [`examples/bench.py`](examples/bench.py) (`timeit`, 500 iters × 5
+batches, median per call):
+
+```
+sk_pqc hybrid KEM bench  (suite x25519-mlkem768)
+  python   3.12.3 (x86_64)
+  platform Linux-6.17.0-35-generic-x86_64-with-glibc2.39
+
+op          median (us)      mean (us)      ops/sec
+----------------------------------------------------
+keygen            226            279          ~4,400
+encap             360            512          ~2,800
+decap             341            416          ~2,900
+```
+
+Sub-millisecond per operation on a commodity x86-64 CPU (no GPU); the ML-KEM-768
+leg dominates over X25519. These are machine-specific — **reproduce on your own
+hardware** with `python examples/bench.py [iters]`. Note the per-epoch DM-ratchet
+design means this KEM cost is amortised across every message in an epoch, not paid
+per message.
+
 ## Test
 
 ```bash

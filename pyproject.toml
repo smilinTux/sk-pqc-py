@@ -58,7 +58,7 @@ Standards = "https://github.com/smilinTux/sk-standards"
 packages = ["src/sk_pqc"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/sk_pqc", "tests", "README.md", "LICENSE"]
+include = ["src/sk_pqc", "tests", "examples", "README.md", "LICENSE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
