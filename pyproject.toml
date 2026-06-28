@@ -49,6 +49,8 @@ test = [
     "hypothesis>=6.0",
     "liboqs-python>=0.12",
 ]
+# HTML API-reference toolchain (pure-Python, no native compile). `make docs`.
+docs = ["pdoc>=15"]
 
 [project.urls]
 Homepage = "https://github.com/smilinTux/sk-pqc-py"

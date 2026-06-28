@@ -187,6 +187,22 @@ cd ~ && python -m pytest /path/to/sk-pqc-py/tests -q
 
 The cross-implementation interop gate (`test_pqkem.py::test_cross_impl_vector_matches_sk_pqc`) decapsulates the shared Dart/Python KAT vector and asserts the recorded shared secret — this is what proves the two implementations agree byte-for-byte. PQ tests skip cleanly if liboqs is unavailable; the pure-pyca combiner KAT + registry tests always run.
 
+## API docs
+
+Full HTML API reference (every public symbol, generated from docstrings with
+[`pdoc`](https://pdoc.dev)) lives in [`docs/api/`](docs/api/index.html) — open
+`docs/api/index.html` in a browser. The pages carry the same experimental /
+not-audited banner as this README.
+
+Regenerate after changing any public API (pure-Python, no compile):
+
+```bash
+pip install pdoc
+scripts/build-api-docs.sh   # or: make docs
+```
+
+See also the prose [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## Self-report (claim evidence)
 
 ```python
