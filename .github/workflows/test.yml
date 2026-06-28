@@ -1,0 +1,78 @@
+# CI test matrix for sk-pqc.
+#
+# Two things must stay green for a commit to be trusted:
+#   1. The full pytest suite, across CPython 3.10 / 3.11 / 3.12.
+#   2. The cross-impl KAT / parity gate — decapsulating the shared JSON test
+#      vector MUST recover the exact byte-for-byte shared secret recorded for the
+#      Python / Dart / Rust siblings. This is the byte-identity proof; if liboqs
+#      is not actually loadable the gate FAILS LOUDLY (it never silently skips).
+#
+# The ML-KEM-768 leg comes from liboqs (via the `oqs` import in liboqs-python).
+# liboqs-python builds the native liboqs on first import, so we install the C
+# build deps (cmake / ninja / compiler / OpenSSL headers) before pip.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    name: pytest (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install native build deps for liboqs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build build-essential libssl-dev git
+
+      - name: Install package + test extra
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+
+      - name: Warm liboqs (build native lib on first import)
+        run: python -c "import oqs; print('liboqs OK:', oqs.oqs_version())"
+
+      - name: Run full test suite
+        run: python -m pytest -q
+
+      # ---- The byte-identity gate ----
+      # If liboqs is not actually available, the cross-impl tests would skip and
+      # a green bar would be a lie. So we assert availability FIRST, then run the
+      # cross-impl vector tests so they genuinely execute.
+      - name: Cross-impl KAT / parity gate (byte-identity, must RUN)
+        run: |
+          python - <<'PY'
+          from sk_pqc import pqkem
+          assert pqkem.is_available(), (
+              "liboqs/oqs not loadable — the cross-impl PQ gate cannot run; "
+              "refusing to report a green bar"
+          )
+          print("PQ leg available — gate will execute, not skip")
+          PY
+          python -m pytest tests/test_pqkem.py \
+            -o addopts="" -v \
+            -k "cross_impl or legs_match_vector"

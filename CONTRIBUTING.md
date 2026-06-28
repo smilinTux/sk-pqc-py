@@ -156,8 +156,9 @@ vector suite. See [SOP.md](SOP.md) §Release:
    `src/sk_pqc/__init__.py`, and add a `CHANGELOG.md` entry.
 2. `python -m pytest tests -q` (combiner KAT + cross-impl vector + all module suites).
 3. `python -m build && twine check dist/*` (confirm wire-format lengths unchanged).
-4. `git tag vX.Y.Z && git push --tags`.
-5. Create a GitHub Release → `publish.yml` uploads to PyPI `sk-pqc`.
+4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. `release.yml` builds, re-runs the byte-identity gate, uploads to PyPI `sk-pqc`
+   over OIDC, and cuts the GitHub Release. See [PUBLISHING.md](PUBLISHING.md).
 
 A wire-format or combiner change is **never** a patch release — it ships under a new
 suite id with the Dart and Rust verifiers updated in lockstep.

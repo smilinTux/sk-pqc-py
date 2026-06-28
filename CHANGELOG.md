@@ -8,7 +8,20 @@ change to them ships under a new suite id, not a patch.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **CI** — `.github/workflows/test.yml` runs the suite on CPython 3.10 / 3.11 /
+  3.12 plus a dedicated cross-impl KAT / parity gate step that fails loudly if
+  liboqs is not actually loadable (the byte-identity proof never silently skips).
+- **Release automation** — `.github/workflows/release.yml` publishes on a `v*`
+  tag: build sdist+wheel, re-run the gate as a guard, publish to PyPI via Trusted
+  Publishing (OIDC, `pypi` environment, no stored token), then cut the GitHub
+  Release. Documented in the new [`PUBLISHING.md`](PUBLISHING.md).
+
+### Changed
+
+- Replaced the release-triggered `publish.yml` with the tag-triggered
+  `release.yml` to avoid a double-publish path; SOP/CONTRIBUTING updated to match.
 
 ## [0.1.0] — 2026-06-27
 

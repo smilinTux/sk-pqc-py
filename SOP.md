@@ -243,22 +243,22 @@ liboqs is unavailable; the pure-pyca combiner KAT + registry tests always run.
 ## Release (to PyPI)
 
 Publishing uses **PyPI Trusted Publishing (OIDC)** — no API token is stored
-anywhere. The workflow `.github/workflows/publish.yml` runs on a published GitHub
-Release.
+anywhere. The workflow `.github/workflows/release.yml` runs on a pushed `v*` tag:
+it builds, re-runs the byte-identity gate as a guard, publishes to PyPI over OIDC,
+then cuts the matching GitHub Release. Full details in [PUBLISHING.md](PUBLISHING.md).
 
 ```mermaid
 flowchart TD
     BUMP["1. Bump version<br/>pyproject.toml [project].version + src/sk_pqc/__init__.py __version__<br/>+ add a CHANGELOG.md entry"]
     TEST["2. python -m pytest tests -q<br/>(combiner KAT + cross-impl vector + all module suites green)"]
     BUILD["3. python -m build && twine check dist/*<br/>(verify wire-format lengths unchanged — a change is NEVER a patch)"]
-    TAG["4. git tag vX.Y.Z && git push --tags"]
-    REL["5. Create a GitHub Release (publishes)"]
-    OIDC["6. publish.yml → pypa/gh-action-pypi-publish<br/>(OIDC trusted publishing → PyPI 'sk-pqc')"]
+    TAG["4. git tag vX.Y.Z && git push origin vX.Y.Z"]
+    OIDC["5. release.yml → build + gate → pypa/gh-action-pypi-publish<br/>(OIDC trusted publishing → PyPI 'sk-pqc') → GitHub Release"]
 
     GATE{"wire format / combiner<br/>unchanged?"}
 
     BUMP --> TEST --> GATE
-    GATE -->|"yes"| BUILD --> TAG --> REL --> OIDC
+    GATE -->|"yes"| BUILD --> TAG --> OIDC
     GATE -->|"no → drift"| STOP["BLOCK release — a wire/combiner change<br/>breaks every peer; ship under a NEW suite id<br/>with all three impls updated in lockstep"]
 
     style OIDC fill:#51cf66,stroke:#2b8a3e,stroke-width:3px
@@ -268,9 +268,9 @@ flowchart TD
 
 **One-time setup (browser, maintainer):** register the trusted publisher at
 <https://pypi.org/manage/account/publishing/> — PyPI project `sk-pqc`, owner
-`smilinTux`, repo `sk-pqc-py`, workflow `publish.yml`, environment `pypi`. After
-that, publishing a GitHub Release triggers the upload; `workflow_dispatch` allows a
-manual re-run.
+`smilinTux`, repo `sk-pqc-py`, workflow `release.yml`, environment `pypi`. After
+that, pushing a `v*` tag triggers the upload; `workflow_dispatch` allows a build +
+gate dry-run with no publish.
 
 A wire-format or combiner change is **never** a patch release — it ships under a new
 suite id with the Dart and Rust verifiers updated in lockstep. See
