@@ -46,6 +46,7 @@ dependencies = [
 pq = ["liboqs-python>=0.12"]
 test = [
     "pytest>=8.0",
+    "hypothesis>=6.0",
     "liboqs-python>=0.12",
 ]
 
