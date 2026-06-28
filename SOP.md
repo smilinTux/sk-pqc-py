@@ -276,6 +276,12 @@ A wire-format or combiner change is **never** a patch release — it ships under
 suite id with the Dart and Rust verifiers updated in lockstep. See
 [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
+### Front-end / Exposure
+
+Per [sk-standards `UNIFIED_INGRESS_STANDARD.md`](https://github.com/smilinTux/sk-standards/blob/main/standards/UNIFIED_INGRESS_STANDARD.md):
+**N/A — no network surface (library).** `sk_pqc` is a published PyPI library; it has no
+daemon, port, or listener and answers no public `:443` route.
+
 ---
 
 ## Config
