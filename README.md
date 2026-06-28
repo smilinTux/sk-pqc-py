@@ -132,7 +132,7 @@ print(s.status.value, s.fips_refs, is_quantum_resistant("x25519-mlkem768"))
 
 ## Provenance / clean-room
 
-The `pqroute1` routing split and the `anon_queue` addressing are inspired by the *shape* of mix/relay designs (incl. SimpleX, AGPL-3.0) — **clean-room: no third-party code was copied or translated**, only the protocol idea. The wire formats, codecs, and MAC constructions are original and built solely on the vetted backends above.
+The `pqroute1` routing split and the `anon_queue` addressing are inspired by no-identity / mix-network messaging designs (clean-room, original implementation) — only the protocol idea; **no third-party code was copied or translated**. The wire formats, codecs, and MAC constructions are original and built solely on the vetted backends above.
 
 ## Related projects / See also
 

@@ -1,7 +1,8 @@
-"""RFC-0001 P5 foundation — SimpleX-inspired anonymous queue addressing.
+"""RFC-0001 P5 foundation — anonymous queue addressing inspired by
+no-identity / mix-network messaging designs (clean-room, original implementation).
 
-CLEAN-ROOM: these tests exercise the *idea* (uncorrelated recipient/sender
-ids + deniable shared-secret auth), never any AGPL SimpleX code. They cover:
+These tests exercise the *idea* (uncorrelated recipient/sender
+ids + deniable shared-secret auth); the implementation is original. They cover:
     - new_queue_pair(): two distinct 16-byte ids, random per call.
     - aqid:<relay>/<base64url(sid)> codec round-trip + malformed rejection.
     - HMAC-SHA256 deniable authenticator: verifies, rejects tamper/wrong secret.
