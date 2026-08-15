@@ -201,6 +201,11 @@ pip install pdoc
 scripts/build-api-docs.sh   # or: make docs
 ```
 
+> ⚠️ **`docs/api/` is generated HTML committed to the repo, and nothing regenerates or
+> validates it on push.** It is a snapshot that **will drift silently** from the
+> docstrings. If it disagrees with `src/`, `src/` wins. Regenerating it is a manual
+> step, so treat the pages as a convenience, not as the contract.
+
 See also the prose [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Self-report (claim evidence)
@@ -211,6 +216,12 @@ s = get_suite("x25519-mlkem768")
 print(s.status.value, s.fips_refs, is_quantum_resistant("x25519-mlkem768"))
 # hybrid-pq ('FIPS 203', 'RFC 7748', 'RFC 5869') True
 ```
+
+**This output is machine-checked.** `SOP.md`'s `docs-evidence` block executes that
+exact call on every push and asserts each field, so the claim cannot drift away from
+the code without the docs-check gate going red. The registry it reads
+(`crypto_suites`) is pure stdlib, so the self-report answers even where liboqs is
+absent and the hybrid operations would raise `PqKemUnavailable`.
 
 ## Provenance / clean-room
 
