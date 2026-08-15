@@ -6,6 +6,34 @@ All notable changes to `sk-pqc` are documented here. The format is based on
 format and the HKDF combiner are **frozen across the `0.x` line** — any breaking
 change to them ships under a new suite id, not a patch.
 
+## Unreleased
+
+### Documentation
+
+- `SOP.md` completed to the 9 canonical SK_REPO_DOC_STANDARD sections: added an
+  explicit **Overview** heading (with a "what it does NOT do" list), a full
+  **API / Reference** section (the API previously existed only as generated
+  `docs/api/` HTML and in the README), and a **Maturity-tier + Version reference**
+  section. Existing sections were numbered; **no section was reordered**, because
+  Build, Test, Release, Config, Troubleshooting was already the canonical order.
+- Added a `docs-evidence` block (8 hermetic checks). Two are notable:
+  - it **executes the documented self-report** and asserts `status`, `fips_refs` and
+    `is_quantum_resistant`, so the README's claim-evidence block is machine-checked
+    rather than merely asserted;
+  - it asserts the **two version copies agree** (`pyproject.toml` and
+    `src/sk_pqc/__init__.py`), checking parity rather than a literal number, since the
+    version is hard-coded in two places and a half-finished bump is a real hazard.
+- Flagged that **`docs/api/` generated HTML is committed and nothing regenerates or
+  validates it**, so it will rot silently. Noted in both `README.md` and `SOP.md`;
+  `src/` is authoritative where they disagree.
+- CRYPTOGRAPHY_STANDARD now cited by its full canonical path
+  (`sk-standards/blob/main/standards/CRYPTOGRAPHY_STANDARD.md`) rather than the repo
+  root, matching the rest of the fleet.
+- Added an "Unverified / needs an operator pass" section recording what was not
+  re-executed (the test suite, the three-way cross-impl parity claim, the PyPI release
+  flow, the benchmarks).
+- Added `.github/workflows/docs-check.yml` (tiers 1,2).
+
 ## [Unreleased]
 
 ### Added
