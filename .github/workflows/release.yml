@@ -1,131 +1,150 @@
-# Release sk-pqc to PyPI on a version tag, via PyPI Trusted Publishing (OIDC).
-#
-# NO API token is stored anywhere. PyPI mints a short-lived credential for THIS
-# repo + THIS workflow + the `pypi` environment, verified over OIDC. See
-# PUBLISHING.md for the one-time trusted-publisher registration and the full
-# tag -> release flow.
-#
-# Flow:
-#   1. Bump version in pyproject.toml + add a CHANGELOG.md section.
-#   2. git tag vX.Y.Z && git push origin vX.Y.Z
-#   3. This workflow builds sdist+wheel, runs the byte-identity gate as a guard,
-#      publishes to PyPI (OIDC), then cuts a GitHub Release with the artifacts.
-#
-# The tag is the trigger; the `pypi` environment + id-token are the credential.
 name: release
+
+# Two entry points, one workflow:
+#
+#   push to main  -> cut the next vX.Y.Z tag, then build + publish it
+#   push of a v*  -> build + publish that tag (manual or historical releases)
+#
+# The tagging lives INSIDE this workflow deliberately:
+#   1. PyPI Trusted Publishing is bound to the workflow FILENAME
+#      (owner=smilinTux workflow=release.yml environment=pypi), so the publish step
+#      cannot move to another file.
+#   2. A tag pushed with GITHUB_TOKEN does NOT trigger other workflows, so a
+#      separate "tag main" workflow would create tags nothing ever publishes.
 
 on:
   push:
-    tags:
-      - "v*"
-  # Lets you dry-run the build+gate (no publish) from the Actions tab.
-  workflow_dispatch: {}
+    branches: ["main"]
+    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  # --- Guard: build the artifacts and prove the byte-identity gate BEFORE we
-  # publish anything. A broken tag must never reach PyPI. ---
+  tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tagged: ${{ steps.bump.outputs.tagged }}
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - id: bump
+        name: Cut the next patch tag if HEAD is not already tagged
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Highest v-tag by VERSION, not `git describe`. describe only sees tags
+          # that are ancestors of HEAD, so an unpushed or orphaned tag makes it
+          # report "previous: none" and restart from zero. That published
+          # skcoord/skdashboard 0.0.1 and 0.0.2, both below their real 0.1.0.
+          latest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)"
+
+          if [ -n "$(git tag --points-at HEAD -l 'v[0-9]*.[0-9]*.[0-9]*')" ]; then
+            echo "HEAD is already tagged; nothing to release."
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base="${latest:-v0.0.0}"
+          ver="${base#v}"
+          IFS='.' read -r major minor patch <<< "$ver"
+          major="${major:-0}"; minor="${minor:-0}"; patch="${patch:-0}"
+          next="v${major}.${minor}.$((patch + 1))"
+          while git rev-parse -q --verify "refs/tags/$next" >/dev/null 2>&1; do
+            patch=$((patch + 1))
+            next="v${major}.${minor}.$((patch + 1))"
+          done
+
+          echo "Cutting $next at ${GITHUB_SHA:0:8} (previous: ${latest:-none})"
+          git tag -a "$next" -m "release: $next from main"
+          git push origin "$next"
+          echo "tagged=true" >> "$GITHUB_OUTPUT"
+          echo "version=${next#v}" >> "$GITHUB_OUTPUT"
+
   build:
-    name: build + verify
+    needs: [tag]
+    # `always()` is required: `needs` on a SKIPPED job would otherwise skip this
+    # one on the tag-push path.
+    if: >-
+      always() && !cancelled() &&
+      (needs.tag.result == 'skipped' || needs.tag.outputs.tagged == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          # setuptools-scm reads the tag; a shallow checkout yields a dev version.
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Refuse to publish a tag that is not on main
+        # The local pre-push hook is a symlink into each clone's working tree, so
+        # a clone that has not pulled the main-only fix keeps cutting tags at
+        # feature-branch tips. Server-side backstop.
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          if [ "${{ vars.ALLOW_OFF_MAIN_RELEASE }}" = "1" ]; then
+            echo "ALLOW_OFF_MAIN_RELEASE=1 is set; skipping the on-main check."
+            exit 0
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "OK: ${GITHUB_REF_NAME} (${GITHUB_SHA:0:8}) is on main."
+            exit 0
+          fi
+          echo "::error::${GITHUB_REF_NAME} points at ${GITHUB_SHA:0:8}, which is NOT on main. Refusing to publish."
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install native build deps for liboqs
+      - name: Assert the version to publish is a real release
+        # A dev/local version is rejected by PyPI with a 400, and by then the tag
+        # is already cut. capauth hit exactly that. Fail here instead.
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.tag.outputs.version }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build build-essential libssl-dev git
-
-      - name: Install package + test extra
-        run: |
-          python -m pip install --upgrade pip build twine
-          python -m pip install -e ".[test]"
-
-      - name: Byte-identity gate (must RUN, not skip)
-        run: |
-          python - <<'PY'
-          from sk_pqc import pqkem
-          assert pqkem.is_available(), (
-              "liboqs/oqs not loadable — refusing to publish without the "
-              "cross-impl PQ gate actually running"
-          )
-          PY
-          python -m pytest -q
-
-      - name: Tag matches package version
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG="$(python -c 'import importlib.metadata as m; print(m.version("sk-pqc"))')"
-          echo "tag=$TAG  package=$PKG"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag v$TAG does not match pyproject version $PKG" >&2
-            exit 1
-          fi
-
-      - name: Build sdist + wheel
-        run: python -m build
-
-      - name: twine check
-        run: twine check dist/*
-
+          set -euo pipefail
+          python -m pip install --upgrade setuptools_scm >/dev/null
+          v="$(python -m setuptools_scm 2>/dev/null || echo unknown)"
+          echo "version to publish: $v"
+          case "$v" in
+            *+*|*dev*|unknown|0.0.0*)
+              echo "::error::refusing to publish a non-release version: $v"
+              exit 1 ;;
+          esac
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.tag.outputs.version }}
+      - run: python -m twine check dist/*
       - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
-          if-no-files-found: error
 
-  # --- Publish to PyPI via OIDC Trusted Publishing. No stored token. ---
   pypi-publish:
-    name: publish to PyPI (OIDC)
     needs: build
-    # Only real version tags publish; workflow_dispatch is build/gate only.
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/sk-pqc/
+    environment: pypi
     permissions:
-      id-token: write # OIDC — the trusted-publishing credential (no password)
+      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
-
-  # --- Cut the GitHub Release once PyPI has the artifacts. ---
-  github-release:
-    name: GitHub Release
-    needs: pypi-publish
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # create the release + upload assets
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --notes "sk-pqc $GITHUB_REF_NAME — see CHANGELOG.md. Published to PyPI via Trusted Publishing (OIDC)." \
-            dist/*
+      # Trusted Publishing (OIDC). No PyPI token in the CI path; the publisher is
+      # registered on PyPI as owner=smilinTux workflow=release.yml environment=pypi.
+      - uses: pypa/gh-action-pypi-publish@release/v1

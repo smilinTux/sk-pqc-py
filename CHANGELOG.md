@@ -8,6 +8,18 @@ change to them ships under a new suite id, not a patch.
 
 ## Unreleased
 
+### Fixed
+
+- Configured Hatch's VCS version source correctly so editable installs and CI
+  builds derive the package version from `v*` tags instead of failing metadata
+  generation. Runtime `sk_pqc.__version__` now reads the installed distribution
+  metadata rather than drifting as a second hard-coded version copy.
+
+### Changed
+
+- Releases now cut the next patch tag automatically from `main` and publish in
+  the same OIDC-bound `release.yml` workflow.
+
 ### Documentation
 
 - `SOP.md` completed to the 9 canonical SK_REPO_DOC_STANDARD sections: added an
@@ -20,9 +32,8 @@ change to them ships under a new suite id, not a patch.
   - it **executes the documented self-report** and asserts `status`, `fips_refs` and
     `is_quantum_resistant`, so the README's claim-evidence block is machine-checked
     rather than merely asserted;
-  - it asserts the **two version copies agree** (`pyproject.toml` and
-    `src/sk_pqc/__init__.py`), checking parity rather than a literal number, since the
-    version is hard-coded in two places and a half-finished bump is a real hazard.
+  - it asserts the package uses one VCS-derived version source and that runtime
+    `__version__` reads installed distribution metadata.
 - Flagged that **`docs/api/` generated HTML is committed and nothing regenerates or
   validates it**, so it will rot silently. Noted in both `README.md` and `SOP.md`;
   `src/` is authoritative where they disagree.
@@ -33,8 +44,6 @@ change to them ships under a new suite id, not a patch.
   re-executed (the test suite, the three-way cross-impl parity claim, the PyPI release
   flow, the benchmarks).
 - Added `.github/workflows/docs-check.yml` (tiers 1,2).
-
-## [Unreleased]
 
 ### Added
 

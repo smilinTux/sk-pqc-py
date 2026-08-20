@@ -25,7 +25,12 @@ derivation) work with no PQ backend at all.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("sk-pqc")
+except PackageNotFoundError:  # Source tree imported without installation.
+    __version__ = "0+unknown"
 
 # ---- Hybrid KEM (X25519 + ML-KEM-768, FIPS 203) ---------------------------
 from .pqkem import (

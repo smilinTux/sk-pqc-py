@@ -152,13 +152,13 @@ OQS_INSTALL_PATH=$HOME/.local python -m pytest /path/to/sk-pqc-py/tests -q
 Releases publish to PyPI via **Trusted Publishing (OIDC)** — gated on the cross-impl
 vector suite. See [SOP.md](SOP.md) §Release:
 
-1. Bump `[project].version` in `pyproject.toml` **and** `__version__` in
-   `src/sk_pqc/__init__.py`, and add a `CHANGELOG.md` entry.
+1. Add a `CHANGELOG.md` entry. The version is derived from the release tag; do
+   not add a hard-coded version to `pyproject.toml` or `src/sk_pqc/__init__.py`.
 2. `python -m pytest tests -q` (combiner KAT + cross-impl vector + all module suites).
 3. `python -m build && twine check dist/*` (confirm wire-format lengths unchanged).
-4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. `release.yml` builds, re-runs the byte-identity gate, uploads to PyPI `sk-pqc`
-   over OIDC, and cuts the GitHub Release. See [PUBLISHING.md](PUBLISHING.md).
+4. Merge to `main`; `release.yml` cuts the next patch tag at that commit.
+5. The same workflow builds, validates, and uploads `sk-pqc` to PyPI over OIDC.
+   See [PUBLISHING.md](PUBLISHING.md).
 
 A wire-format or combiner change is **never** a patch release — it ships under a new
 suite id with the Dart and Rust verifiers updated in lockstep.
