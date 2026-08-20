@@ -9,20 +9,39 @@ addressing, suite registry) is **wiring** over that KEM plus AES-256-GCM. The
 lattice and curve math are **bound, never hand-rolled** (liboqs for ML-KEM-768 via
 the `oqs` import; pyca `cryptography` for X25519 / HKDF / AES-256-GCM).
 
+---
+
+## 1. Overview
+
+### Purpose and scope
+
+`sk-pqc` gives a Python caller a **32-byte hybrid shared secret** and the sealed-blob
+formats built on it. It owns the suite `x25519-mlkem768`, the combiner, the wire
+formats, and the suite registry that backs the self-report (section 9).
+
 It is **byte-for-byte interoperable** with the Dart [`sk_pqc`](https://pub.dev/packages/sk_pqc)
 and Rust [`sk-pqc`](https://crates.io/crates/sk-pqc) siblings — a blob sealed by any
 one opens in the other two; the deterministic constructions are pinned by a shared
 cross-impl KAT vector (`tests/vectors/hybrid_kem_x25519_mlkem768.json`). All three
 import as `sk_pqc`.
 
-**Maturity tier:** **T2 — Hybrid KEM** (per the sk-standards
-[CRYPTOGRAPHY_STANDARD](https://github.com/smilinTux/sk-standards)). Key exchange /
-wrap uses `HKDF(X25519 ‖ ML-KEM-768)`, which neutralises Harvest-Now-Decrypt-Later
-on anything wrapped through it. It is **KEM-only and honest about it** — signatures
-(ML-DSA / SLH-DSA, T3) are out of scope / future work; this library authenticates
-**nothing** by itself (pair it with `sk_pgp` or a hybrid-signature layer).
+### What it explicitly does NOT do
 
-## Honest-claim posture (non-negotiable)
+- **It authenticates nothing.** This is a KEM. An unauthenticated KEM is trivially
+  machine-in-the-middled: **authenticate the public keys out of band.** Pair it with
+  `sk_pgp` or a hybrid-signature layer.
+- **No signatures.** ML-DSA / SLH-DSA (T3) are out of scope and not planned here.
+- **No transport, no key storage, no trust decisions.** Those belong to the caller.
+
+### Maturity tier
+
+**T2, Hybrid KEM** (per the sk-standards
+[CRYPTOGRAPHY_STANDARD](https://github.com/smilinTux/sk-standards/blob/main/standards/CRYPTOGRAPHY_STANDARD.md)).
+Key exchange / wrap uses `HKDF(X25519 || ML-KEM-768)`, which neutralises
+Harvest-Now-Decrypt-Later on anything wrapped through it. It is **KEM-only and honest
+about it**. Full per-axis detail and the version reference are in **section 9**.
+
+### Honest-claim posture (non-negotiable)
 
 - This is **quantum-resistant** / **post-quantum**. It is **never** "quantum-proof,"
   "quantum-safe," or "unbreakable."
@@ -44,7 +63,7 @@ shape of the X25519 leg), SP 800-38D (AES-GCM), NIST CSWP 39 (crypto-agility).
 
 ---
 
-## Architecture
+## 2. Architecture
 
 ### 1. Module dependency graph
 
@@ -182,7 +201,7 @@ Each layer keys HKDF with a distinct `info` label so a key from one layer can
 
 ---
 
-## Build
+## 3. Build
 
 `sk-pqc` is a **published PyPI package**, not a deployed service. "Build" = produce
 the sdist + wheel; the only runtime native dependency is liboqs (for the PQ leg).
@@ -215,7 +234,7 @@ hybrid KEM operations raise `PqKemUnavailable`.
 
 ---
 
-## Test
+## 4. Test
 
 ```bash
 # Run from $HOME to avoid local-namespace collisions with the src/ layout.
@@ -240,7 +259,7 @@ liboqs is unavailable; the pure-pyca combiner KAT + registry tests always run.
 
 ---
 
-## Release (to PyPI)
+## 5. Release (to PyPI)
 
 Publishing uses **PyPI Trusted Publishing (OIDC)** — no API token is stored
 anywhere. The workflow `.github/workflows/release.yml` runs on a pushed `v*` tag:
@@ -284,7 +303,7 @@ daemon, port, or listener and answers no public `:443` route.
 
 ---
 
-## Config
+## 6. Configuration / Usage
 
 | Knob | Where | Effect |
 |---|---|---|
@@ -295,7 +314,82 @@ daemon, port, or listener and answers no public `:443` route.
 
 ---
 
-## Troubleshooting
+## 7. API / Reference
+
+The full generated reference is `docs/api/` (pdoc HTML, also linked from the README).
+This section is the **stable contract**: the names below are what consumers import and
+what the cross-impl vector pins.
+
+> ⚠️ **`docs/api/` is generated HTML committed to the repo.** It is a snapshot, not a
+> build product regenerated on push, so it **will rot silently** as docstrings change.
+> Treat this section and the docstrings in `src/` as authoritative, and regenerate
+> `docs/api/` when you change the public surface. Nothing currently fails if it drifts.
+
+### Interop constants (`sk_pqc.pqkem`, DO NOT CHANGE)
+
+These are pinned by the cross-impl KAT vector. Changing any of them breaks the Dart
+and Rust siblings silently, with no exception raised.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `SUITE_ID` | `"x25519-mlkem768"` | the suite identifier on the wire |
+| `MLKEM_ALG` | `"ML-KEM-768"` | the liboqs algorithm name |
+| `HKDF_SALT` | `b""` | RFC 5869 empty salt (HashLen zero bytes) |
+| `HKDF_INFO` | `b"sk_pqc/x25519-mlkem768/v1"` | default domain-separation label |
+| `SHARED_SECRET_LEN` | `32` | HKDF output length |
+| `X25519_PUB_LEN` / `X25519_SEED_LEN` | `32` / `32` | classical leg |
+| `MLKEM_PUB_LEN` / `MLKEM_SECRET_LEN` / `MLKEM_CT_LEN` | `1184` / `2400` / `1088` | lattice leg |
+
+Composite wire sizes follow from those: public `1216`, private `2432`, ciphertext
+`1120`, shared secret `32`.
+
+### Core KEM (`sk_pqc.pqkem`)
+
+| Symbol | Shape | Notes |
+|---|---|---|
+| `hybrid_keypair()` | `-> (public, private)` | `1216` / `2432` bytes |
+| `hybrid_encap(public_key, info=HKDF_INFO)` | `-> (ciphertext, shared_secret)` | `1120` / `32` bytes |
+| `hybrid_decap(ciphertext, private_key, info=HKDF_INFO)` | `-> shared_secret` | `32` bytes; matches the encapsulator **iff both legs agree** |
+| `PqKemUnavailable` | exception | raised when liboqs is missing. **A hard error, never a silent classical downgrade.** |
+| `PqKemFormatError` | exception | malformed or wrong-length input |
+
+### Suite registry and self-report (`sk_pqc.crypto_suites`)
+
+This is the evidence surface. It is **pure stdlib** and needs no PQ backend, so it
+answers even on a machine with no liboqs.
+
+| Symbol | Returns |
+|---|---|
+| `get_suite(suite_id)` | a frozen suite record with `.status` and `.fips_refs` |
+| `is_quantum_resistant(suite_id)` | `bool` |
+
+```python
+from sk_pqc import get_suite, is_quantum_resistant
+s = get_suite("x25519-mlkem768")
+print(s.status.value, s.fips_refs, is_quantum_resistant("x25519-mlkem768"))
+# hybrid-pq ('FIPS 203', 'RFC 7748', 'RFC 5869') True
+```
+
+**That output is machine-checked.** The `docs-evidence` block at the end of this file
+executes this exact call and asserts the exact values, so the claim cannot drift away
+from the code without the gate going red. See section 9.
+
+### Sealed formats
+
+| Module | Entry points | Raises |
+|---|---|---|
+| `pqdm` | PQXDH-style one-shot seal / open with a downgrade-lock AAD | `DowngradeDetected` when the AEAD open fails (tamper or suite mismatch), `PqDmFormatError` |
+| `pqroute` | `pqroute1` metadata-sealing routing envelope | `PqRouteFormatError` |
+| `group_ratchet` / `dm_ratchet` | per-epoch group / 1:1 DM key schedules | format errors per module |
+| `anon_queue` | `aqid:` addressing + deniable HMAC auth | `AnonQueueFormatError` |
+
+`DowngradeDetected` (`src/sk_pqc/pqdm.py`) is the runtime tell that a negotiated suite
+did not match. **A silent classical downgrade that does not surface as
+`DowngradeDetected` is a security bug**, and SECURITY.md asks for it by name.
+
+---
+
+## 8. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -311,4 +405,108 @@ daemon, port, or listener and answers no public `:443` route.
 
 ---
 
-**SK = staycuriousANDkeepsmilin 🐧** — *sk-pqc: hybrid post-quantum primitives, honest about KEM-only.*
+## 9. Maturity-tier + Version reference
+
+### Maturity tier: **T2**
+
+Scale: [sk-standards `standards/CRYPTOGRAPHY_STANDARD.md`](https://github.com/smilinTux/sk-standards/blob/main/standards/CRYPTOGRAPHY_STANDARD.md).
+This is the T0-T4 **maturity** scale. It is **not** the FIPS 203 parameter set
+(ML-KEM-768 vs ML-KEM-1024) referred to in section 1; the two are different scales.
+
+| Tier | Meaning | `sk-pqc` status | Evidence |
+|---|---|---|---|
+| **T0, Classical** | asymmetric crypto is classical | superseded for KEM | `crypto_suites` records the classical suites as such |
+| **T1, Agile** | suite ids + registry + backend abstraction + **self-report** | **met.** A real suite registry (`crypto_suites`) and a **runnable self-report** returning status and FIPS refs. | `get_suite(...).status` / `.fips_refs`, executed by the docs-evidence block below |
+| **T2, Hybrid KEM** | key exchange uses `HKDF(X25519 \|\| MLKEM768)`; HNDL neutralised | **met. This is `sk-pqc`'s tier.** | `SUITE_ID`, `HKDF_INFO`, the IKM ordering, all pinned below; cross-impl KAT vector |
+| **T3, Hybrid sig** | signatures use ML-DSA-65 + Ed25519 (additive) | **not met, out of scope.** This library signs nothing. | (nothing to measure) |
+| **T4, Transport closed** | edge-to-origin TLS hybrid | **N/A**, a library with no transport leg | (nothing to measure) |
+
+### The self-report is real, and it is checked
+
+Unlike a suite id sitting in a constant, `sk-pqc` exposes a **runnable** self-report
+that answers with the suite's status and the standards it cites:
+
+```python
+from sk_pqc import get_suite, is_quantum_resistant
+s = get_suite("x25519-mlkem768")
+print(s.status.value, s.fips_refs, is_quantum_resistant("x25519-mlkem768"))
+# hybrid-pq ('FIPS 203', 'RFC 7748', 'RFC 5869') True
+```
+
+Two properties make this evidence rather than assertion:
+
+1. **It runs with no PQ backend.** `crypto_suites` is pure stdlib, so the report
+   answers even where liboqs is absent and the hybrid operations would raise.
+2. **The docs-evidence block executes it** and asserts each field. If someone flips the
+   suite status or drops a FIPS reference, the gate goes red. That check was negative
+   tested by doing exactly those two things.
+
+There is also a **runtime** downgrade tell: `DowngradeDetected` (section 7). A missing
+PQ backend raises `PqKemUnavailable` rather than falling back to classical, so a
+downgrade is an error, never a silent success.
+
+### Version reference
+
+The version is stated in **two** places, and they **must** agree:
+
+| Where | Field |
+|---|---|
+| `pyproject.toml` | `[project] version` |
+| `src/sk_pqc/__init__.py` | `__version__` |
+
+This is a hard-coded version, not derived from the tag. That is a known drift hazard:
+a copy left behind rebuilds an already-published version and PyPI rejects the upload
+(or, worse, the two disagree and the artifact misreports itself). **The docs-evidence
+block asserts the two are equal**, deliberately checking *parity* rather than a literal
+number, so it survives a version bump but catches a half-finished one.
+
+Do not quote a version number from this document. Read `pyproject.toml`, and read
+<https://pypi.org/project/sk-pqc/> for what is actually published. Release mechanics
+are in section 5; the wire format is frozen across `0.x` and any break ships under a
+**new suite id** with the Dart and Rust siblings updated in lockstep.
+
+---
+
+## Unverified / needs an operator pass
+
+Stated in this SOP but **not** re-executed while it was written:
+
+- **The test suite was not run.** Section 4's description was read from `tests/`, not
+  executed; the PQ paths need liboqs. CI is the authority for "the tests pass today".
+  What *was* executed here is the self-report in section 7, whose exact output is
+  asserted by the evidence block.
+- **The cross-impl KAT parity claim** (a blob sealed by any one of Python/Dart/Rust
+  opens in the other two) was **not** re-proven across all three implementations. What
+  is verified here is that the shared vector file exists and that this repo's
+  constants and IKM ordering still match what the docs describe.
+- **The PyPI release flow** in section 5 was read from `.github/workflows/release.yml`,
+  not exercised. `sk-pqc 0.1.0` is present on PyPI.
+- **`docs/api/` generated HTML is committed and nothing regenerates or validates it.**
+  It will drift from the docstrings silently. Flagged in section 7; fixing it (drop it
+  from VCS and publish from CI, or add a regeneration check) is a follow-up.
+- **Benchmarks** in the README were not re-run.
+
+---
+
+**SK = staycuriousANDkeepsmilin** *sk-pqc: hybrid post-quantum primitives, honest about KEM-only.*
+
+<!-- docs-evidence
+verified: 2026-08-15
+checks:
+  - name: the documented self-report RUNS and returns the documented values (SOP 7, 9)
+    run: python3 -c 'import importlib.util,sys; sp=importlib.util.spec_from_file_location("_cs","src/sk_pqc/crypto_suites.py"); m=importlib.util.module_from_spec(sp); sys.modules["_cs"]=m; sp.loader.exec_module(m); s=m.get_suite("x25519-mlkem768"); assert s.status.value=="hybrid-pq", s.status; assert s.fips_refs==("FIPS 203","RFC 7748","RFC 5869"), s.fips_refs; assert m.is_quantum_resistant("x25519-mlkem768") is True'
+  - name: the two version copies agree (SOP 9, hard-coded version drift hazard)
+    run: python3 -c 'import re,pathlib; a=re.search(r"^version = \"([^\"]+)\"",pathlib.Path("pyproject.toml").read_text(),re.M).group(1); b=re.search(r"^__version__ = \"([^\"]+)\"",pathlib.Path("src/sk_pqc/__init__.py").read_text(),re.M).group(1); assert a==b, (a,b)'
+  - name: suite id and ML-KEM algorithm name unchanged (SOP 7)
+    run: grep -qE '^SUITE_ID = "x25519-mlkem768"$' src/sk_pqc/pqkem.py && grep -qE '^MLKEM_ALG = "ML-KEM-768"$' src/sk_pqc/pqkem.py
+  - name: HKDF salt, info and output length unchanged (SOP 2, 7)
+    run: grep -qE '^HKDF_SALT = b""$' src/sk_pqc/pqkem.py && grep -qE '^HKDF_INFO = b"sk_pqc/x25519-mlkem768/v1"$' src/sk_pqc/pqkem.py && grep -qE '^SHARED_SECRET_LEN = 32$' src/sk_pqc/pqkem.py
+  - name: combiner IKM is X25519 FIRST, then ML-KEM (SOP 2, the interop invariant)
+    run: grep -qF 'ikm = bytes(x25519_ss) + bytes(mlkem_ss)' src/sk_pqc/pqkem.py
+  - name: wire-format leg sizes unchanged (SOP 7, 8)
+    run: grep -qE '^X25519_PUB_LEN = 32$' src/sk_pqc/pqkem.py && grep -qE '^MLKEM_PUB_LEN = 1184$' src/sk_pqc/pqkem.py && grep -qE '^MLKEM_SECRET_LEN = 2400$' src/sk_pqc/pqkem.py && grep -qE '^MLKEM_CT_LEN = 1088$' src/sk_pqc/pqkem.py
+  - name: the runtime downgrade tell still exists (SOP 7, 9)
+    run: grep -qE '^class DowngradeDetected\(PqDmError\):' src/sk_pqc/pqdm.py
+  - name: cross-impl KAT vector and entry points named in SOP 2 exist
+    run: test -f tests/vectors/hybrid_kem_x25519_mlkem768.json && test -f src/sk_pqc/pqkem.py && test -f src/sk_pqc/crypto_suites.py && test -f src/sk_pqc/__init__.py
+-->
