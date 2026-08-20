@@ -262,22 +262,23 @@ liboqs is unavailable; the pure-pyca combiner KAT + registry tests always run.
 ## 5. Release (to PyPI)
 
 Publishing uses **PyPI Trusted Publishing (OIDC)** — no API token is stored
-anywhere. The workflow `.github/workflows/release.yml` runs on a pushed `v*` tag:
-it builds, re-runs the byte-identity gate as a guard, publishes to PyPI over OIDC,
-then cuts the matching GitHub Release. Full details in [PUBLISHING.md](PUBLISHING.md).
+anywhere. A push to `main` makes `.github/workflows/release.yml` cut the next patch
+tag and build and publish that exact version in the same run. A manually pushed
+`v*` tag is also accepted when it points to `main`. Full details are in
+[PUBLISHING.md](PUBLISHING.md).
 
 ```mermaid
 flowchart TD
-    BUMP["1. Bump version<br/>pyproject.toml [project].version + src/sk_pqc/__init__.py __version__<br/>+ add a CHANGELOG.md entry"]
-    TEST["2. python -m pytest tests -q<br/>(combiner KAT + cross-impl vector + all module suites green)"]
-    BUILD["3. python -m build && twine check dist/*<br/>(verify wire-format lengths unchanged — a change is NEVER a patch)"]
-    TAG["4. git tag vX.Y.Z && git push origin vX.Y.Z"]
-    OIDC["5. release.yml → build + gate → pypa/gh-action-pypi-publish<br/>(OIDC trusted publishing → PyPI 'sk-pqc') → GitHub Release"]
+    CHANGE["1. Add a CHANGELOG.md entry and merge to main"]
+    TEST["2. Required test matrix + byte-identity gate pass"]
+    TAG["3. release.yml cuts the next patch v-tag at main HEAD"]
+    BUILD["4. Build + twine check the tag-derived version"]
+    OIDC["5. pypa/gh-action-pypi-publish<br/>(OIDC trusted publishing → PyPI 'sk-pqc')"]
 
     GATE{"wire format / combiner<br/>unchanged?"}
 
-    BUMP --> TEST --> GATE
-    GATE -->|"yes"| BUILD --> TAG --> OIDC
+    CHANGE --> TEST --> GATE
+    GATE -->|"yes"| TAG --> BUILD --> OIDC
     GATE -->|"no → drift"| STOP["BLOCK release — a wire/combiner change<br/>breaks every peer; ship under a NEW suite id<br/>with all three impls updated in lockstep"]
 
     style OIDC fill:#51cf66,stroke:#2b8a3e,stroke-width:3px
@@ -288,8 +289,9 @@ flowchart TD
 **One-time setup (browser, maintainer):** register the trusted publisher at
 <https://pypi.org/manage/account/publishing/> — PyPI project `sk-pqc`, owner
 `smilinTux`, repo `sk-pqc-py`, workflow `release.yml`, environment `pypi`. After
-that, pushing a `v*` tag triggers the upload; `workflow_dispatch` allows a build +
-gate dry-run with no publish.
+that, merging to `main` cuts and publishes the next patch. A manual `v*` tag remains
+supported, but the workflow rejects off-main tags unless the explicit emergency
+override repository variable is set.
 
 A wire-format or combiner change is **never** a patch release — it ships under a new
 suite id with the Dart and Rust verifiers updated in lockstep. See
@@ -447,20 +449,19 @@ downgrade is an error, never a silent success.
 
 ### Version reference
 
-The version is stated in **two** places, and they **must** agree:
+The version has one source of truth: the repository's release `v*` tag.
 
 | Where | Field |
 |---|---|
-| `pyproject.toml` | `[project] version` |
-| `src/sk_pqc/__init__.py` | `__version__` |
+| `pyproject.toml` | `[project] dynamic = ["version"]`; Hatch VCS reads the tag |
+| `src/sk_pqc/__init__.py` | `__version__` reads installed distribution metadata |
 
-This is a hard-coded version, not derived from the tag. That is a known drift hazard:
-a copy left behind rebuilds an already-published version and PyPI rejects the upload
-(or, worse, the two disagree and the artifact misreports itself). **The docs-evidence
-block asserts the two are equal**, deliberately checking *parity* rather than a literal
-number, so it survives a version bump but catches a half-finished one.
+There is no manually synchronized version copy. `hatch-vcs` derives artifact metadata
+from the tag, while `importlib.metadata.version("sk-pqc")` reports that same installed
+metadata at runtime. **The docs-evidence block asserts this wiring remains present.**
 
-Do not quote a version number from this document. Read `pyproject.toml`, and read
+Do not quote a version number from this document. Inspect the installed distribution,
+the latest release tag, or
 <https://pypi.org/project/sk-pqc/> for what is actually published. Release mechanics
 are in section 5; the wire format is frozen across `0.x` and any break ships under a
 **new suite id** with the Dart and Rust siblings updated in lockstep.
@@ -495,8 +496,8 @@ verified: 2026-08-15
 checks:
   - name: the documented self-report RUNS and returns the documented values (SOP 7, 9)
     run: python3 -c 'import importlib.util,sys; sp=importlib.util.spec_from_file_location("_cs","src/sk_pqc/crypto_suites.py"); m=importlib.util.module_from_spec(sp); sys.modules["_cs"]=m; sp.loader.exec_module(m); s=m.get_suite("x25519-mlkem768"); assert s.status.value=="hybrid-pq", s.status; assert s.fips_refs==("FIPS 203","RFC 7748","RFC 5869"), s.fips_refs; assert m.is_quantum_resistant("x25519-mlkem768") is True'
-  - name: the two version copies agree (SOP 9, hard-coded version drift hazard)
-    run: python3 -c 'import re,pathlib; a=re.search(r"^version = \"([^\"]+)\"",pathlib.Path("pyproject.toml").read_text(),re.M).group(1); b=re.search(r"^__version__ = \"([^\"]+)\"",pathlib.Path("src/sk_pqc/__init__.py").read_text(),re.M).group(1); assert a==b, (a,b)'
+  - name: package version is VCS-derived with no hard-coded runtime copy (SOP 9)
+    run: grep -q '^dynamic = \["version"\]$' pyproject.toml && grep -q '^source = "vcs"$' pyproject.toml && grep -q 'version("sk-pqc")' src/sk_pqc/__init__.py && ! grep -qE '^__version__ = "[0-9]+\.[0-9]+' src/sk_pqc/__init__.py
   - name: suite id and ML-KEM algorithm name unchanged (SOP 7)
     run: grep -qE '^SUITE_ID = "x25519-mlkem768"$' src/sk_pqc/pqkem.py && grep -qE '^MLKEM_ALG = "ML-KEM-768"$' src/sk_pqc/pqkem.py
   - name: HKDF salt, info and output length unchanged (SOP 2, 7)

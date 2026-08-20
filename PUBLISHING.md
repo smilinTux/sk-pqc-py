@@ -11,7 +11,7 @@ The two workflows involved:
 | Workflow | Trigger | Does |
 | --- | --- | --- |
 | `.github/workflows/test.yml` | push to `main`, every PR | pytest on CPython 3.10 / 3.11 / 3.12 + the cross-impl byte-identity gate |
-| `.github/workflows/release.yml` | push of a `v*` tag | build sdist+wheel, re-run the gate, publish to PyPI (OIDC), cut a GitHub Release |
+| `.github/workflows/release.yml` | push to `main` or of a `v*` tag | cut the next patch tag when needed, build sdist+wheel, and publish to PyPI (OIDC) |
 
 ---
 
@@ -56,34 +56,27 @@ protection if desired:
 
 ---
 
-## Cutting a release (the tag → release flow)
+## Cutting a release (the main → tag → publish flow)
 
-1. **Update the version** in `pyproject.toml` (`[project] version = "X.Y.Z"`).
-   The release workflow asserts the tag matches this value and aborts otherwise.
-2. **Update `CHANGELOG.md`** — move items out of `## [Unreleased]` into a new
+1. **Update `CHANGELOG.md`** — move items out of `## Unreleased` into a new
    `## [X.Y.Z] — YYYY-MM-DD` section, and refresh the compare/links at the
-   bottom. See *CHANGELOG discipline* below.
-3. **Commit** both on `main` (or merge the PR).
-4. **Tag and push:**
-
-   ```bash
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
-
-5. `release.yml` runs: it builds the sdist+wheel, re-runs the full test suite +
-   the byte-identity gate as a publish guard, uploads to PyPI over OIDC, then
-   creates the matching GitHub Release with the artifacts attached.
+   bottom. See *CHANGELOG discipline* below. Version metadata itself is derived
+   from the release tag by Hatch VCS.
+2. **Merge to `main`.** Required PR checks provide the pytest matrix and
+   byte-identity gate before merge.
+3. `release.yml` finds the highest semantic `vX.Y.Z` tag, cuts the next patch tag
+   at `main` HEAD, builds that exact tag-derived version, validates the artifacts,
+   and uploads them to PyPI over OIDC.
 
    Re-publishing an already-uploaded version will fail — PyPI versions are
-   immutable. Bump the version; never retag.
+   immutable. Never move or reuse a release tag.
 
-### Dry run (no publish)
+### Manual tag path
 
-Run `release.yml` from **Actions → release → Run workflow**. On
-`workflow_dispatch` (no tag) it builds and runs the gate but **skips** both the
-PyPI publish and the GitHub Release. Use it to sanity-check a build before
-tagging.
+A manually pushed `v*` tag also enters the build/publish path. By default the
+workflow verifies that the tagged commit belongs to `main`; an off-main release
+fails closed unless the `ALLOW_OFF_MAIN_RELEASE=1` repository variable is set for
+an explicit emergency exception.
 
 ---
 
@@ -98,8 +91,8 @@ tagging.
 - **The wire format and the HKDF combiner are frozen across the `0.x` line.** A
   breaking change to either ships under a **new suite id**, not a patch bump —
   call that out explicitly in the changelog if it ever happens.
-- The tag (`vX.Y.Z`), the `pyproject.toml` version, and the changelog heading
-  must agree. CI enforces tag == package version.
+- The tag (`vX.Y.Z`), tag-derived artifact version, and changelog heading must
+  agree. The build refuses development or local versions before upload.
 
 ---
 
