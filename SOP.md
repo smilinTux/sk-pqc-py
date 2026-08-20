@@ -261,6 +261,14 @@ liboqs is unavailable; the pure-pyca combiner KAT + registry tests always run.
 
 ## 5. Release (to PyPI)
 
+### 2026-08-20 release repair
+
+PR `#2` repaired Hatch VCS metadata generation, removed the second hard-coded
+runtime version, and aligned the release documentation/evidence with the automatic
+main-to-tag workflow. The final reviewed head passed CPython 3.10, 3.11, and 3.12,
+the cross-implementation PQ gate, docs tiers 1–3, gitleaks, GitGuardian, isolated
+sdist/wheel builds, and current Twine validation. Merge produced tag `v0.1.1`.
+
 Publishing uses **PyPI Trusted Publishing (OIDC)** — no API token is stored
 anywhere. A push to `main` makes `.github/workflows/release.yml` cut the next patch
 tag and build and publish that exact version in the same run. A manually pushed
@@ -492,7 +500,7 @@ Stated in this SOP but **not** re-executed while it was written:
 **SK = staycuriousANDkeepsmilin** *sk-pqc: hybrid post-quantum primitives, honest about KEM-only.*
 
 <!-- docs-evidence
-verified: 2026-08-15
+verified: 2026-08-20
 checks:
   - name: the documented self-report RUNS and returns the documented values (SOP 7, 9)
     run: python3 -c 'import importlib.util,sys; sp=importlib.util.spec_from_file_location("_cs","src/sk_pqc/crypto_suites.py"); m=importlib.util.module_from_spec(sp); sys.modules["_cs"]=m; sp.loader.exec_module(m); s=m.get_suite("x25519-mlkem768"); assert s.status.value=="hybrid-pq", s.status; assert s.fips_refs==("FIPS 203","RFC 7748","RFC 5869"), s.fips_refs; assert m.is_quantum_resistant("x25519-mlkem768") is True'

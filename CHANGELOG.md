@@ -8,6 +8,11 @@ change to them ships under a new suite id, not a patch.
 
 ## Unreleased
 
+### Documentation
+
+- Recorded the complete PR #2 validation matrix and the resulting `v0.1.1` rollout
+  in the executable SOP.
+
 ### Fixed
 
 - Configured Hatch's VCS version source correctly so editable installs and CI
