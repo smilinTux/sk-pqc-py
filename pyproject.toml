@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "setuptools_scm>=8"]
+requires = ["hatchling", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
 [project]
@@ -63,13 +63,16 @@ packages = ["src/sk_pqc"]
 [tool.hatch.build.targets.sdist]
 include = ["src/sk_pqc", "tests", "examples", "README.md", "LICENSE"]
 
+[tool.hatch.version]
+source = "vcs"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
 
-[tool.setuptools_scm]
+[tool.hatch.version.raw-options]
 # The git tag IS the version. A push to the default branch cuts the next
-# patch tag (see .github/workflows/publish.yml), so every release carries a
+# patch tag (see .github/workflows/release.yml), so every release carries a
 # genuinely new version instead of rebuilding 0.1.0 forever.
 #
 # These repos also carry NON-semver tags (swarm-20260717, fixwave-20260723,
